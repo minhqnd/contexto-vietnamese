@@ -1,6 +1,6 @@
 # Contexto Tiếng Việt - Vietnamese Contexto | @minhqnd
 
-![Contexto Vietnamese](public/img/contexto_vi_1200x630.png)
+![Contexto Vietnamese](/public/image/contexto_vi_1200x630.png)
 
 **Contexto Tiếng Việt** là trò chơi đoán từ dựa trên mức độ liên quan về mặt ngữ nghĩa (Semantic Similarity). Bạn đoán một từ tiếng Việt, AI sẽ đánh giá xem từ đó có liên quan, "same same" với từ bí mật hay không. Luật chơi cực đơn giản: đoán bừa một từ, AI bảo bạn đang "Gần" hay "Xa" từ bí mật. Nhiệm vụ của bạn là dựa vào màu sắc và số Rank để "khoanh vùng" ngữ nghĩa và tìm ra từ khóa cuối cùng.
 
@@ -18,7 +18,7 @@
 3. Quan sát số Rank trả về:
    - **Rank 1**: Chính xác! Bạn thắng 🎉
    - **Rank thấp (2-10)**: Rất gần, tiếp tục thử
-   - **Rank cao (1000+)**: Còn xa lắm, nghĩ lại đi
+   - **Rank cao (1000+)**: Còn xa lắm, thu lại
 4. Sử dụng **Gợi ý** để nhận từ mẫu (tối đa 3 lần)
 5. Nếu đoán đúng hoặc hết lượt, từ bí mật sẽ hiển thị
 
@@ -80,7 +80,9 @@ Dự án sử dụng hệ thống pipeline tự động chạy qua GitHub Action
 ```
 
 ## Demo
-[https://minhqnd.com/contexto](https://minhqnd.com/contexto)
+**Chơi thử ngay tại**: [https://minhqnd.com/contexto](https://minhqnd.com/contexto)
+
+![Contexto](/public/image/demo_contexto.png)
 
 ## Cài đặt & chạy
 ### Yêu cầu
@@ -135,6 +137,25 @@ Dự án sử dụng GitHub Actions để tự động hóa việc tạo game m�
 ### Environment Variables
 - `GOOGLE_API_KEY`: API key cho Google Gemini (re-ranking)
 - `GITHUB_TOKEN`: Auto-provided cho commit/push
+
+### Setup Google Gemini API Key
+Để GitHub Actions có thể chạy pipeline tạo game, bạn cần setup Google Gemini API key:
+
+1. **Tạo Google AI Studio API Key**:
+   - Truy cập [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - Tạo API key mới
+   - Copy API key
+
+2. **Thêm vào GitHub Secrets**:
+   - Vào repository trên GitHub
+   - Settings → Secrets and variables → Actions
+   - New repository secret
+   - Name: `GOOGLE_API_KEY`
+   - Value: Paste API key của bạn
+
+3. **Verify Setup**:
+   - Trigger workflow manually từ Actions tab
+   - Kiểm tra logs để đảm bảo pipeline chạy thành công
 
 ### Caching Strategy
 - **Embeddings Cache**: Cache models và pre-computed embeddings
