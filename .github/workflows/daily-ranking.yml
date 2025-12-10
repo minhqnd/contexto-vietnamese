@@ -1,0 +1,300 @@
+name: Daily Contexto Ranking Pipeline
+
+on:
+  schedule:
+    # Chạy vào 16:30 UTC hàng ngày (23:30 giờ Việt Nam)
+    - cron: '30 16 * * *'
+  workflow_dispatch: # Cho phép chạy thủ công
+
+jobs:
+  # Job 1: Main pipeline - Setup, download (if needed), và generate ranking
+  generate-ranking:
+    name: 🎯 Generate Rankings
+    runs-on: ubuntu-latest
+    outputs:
+      cache-hit: ${{ steps.cache-embeddings.outputs.cache-hit }}
+      ranking-status: ${{ steps.pipeline.outputs.status }}
+      games-count: ${{ steps.pipeline.outputs.games_count }}
+      commit-sha: ${{ steps.commit.outputs.commit_sha }}
+      commit-status: ${{ steps.commit.outputs.status }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Free up disk space
+        run: |
+          # Xóa song song các thư mục lớn để tiết kiệm thời gian
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /usr/local/share/boost &
+          wait
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+          cache-dependency-path: 'scripts/requirements.txt'
+      
+      - name: Cache embeddings and models
+        id: cache-embeddings
+        uses: actions/cache@v4
+        with:
+          path: |
+            model_cache/
+            scripts/clean_dict.pkl
+            ~/.cache/huggingface/
+          key: ${{ runner.os }}-contexto-embeddings-v1
+          restore-keys: |
+            ${{ runner.os }}-contexto-embeddings-
+      
+      - name: Download embeddings if cache miss
+        if: steps.cache-embeddings.outputs.cache-hit != 'true'
+        run: |
+          echo "⬇️ Cache miss - Đang tải contexto_cache từ Google Drive..."
+          pip install gdown
+          gdown 1sY8OGK7ZTS3a7IsxwhZ-mDvpiypi9vuw --folder
+          
+          if [ -d "contexto_cache/model_cache" ]; then
+            mv contexto_cache/model_cache ./
+          fi
+          
+          if [ -f "contexto_cache/clean_dict.pkl" ]; then
+            mv contexto_cache/clean_dict.pkl scripts/
+          fi
+          
+          rm -rf contexto_cache/
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install sentence-transformers faiss-cpu google-genai pydantic numpy
+      
+      - name: Verify embeddings exist
+        run: |
+          echo "🔍 Kiểm tra embeddings:"
+          ls -lh model_cache/ || echo "❌ model_cache/ không tồn tại"
+          ls -lh scripts/clean_dict.pkl || echo "❌ clean_dict.pkl không tồn tại"
+          
+          EMB_COUNT=$(ls -1 model_cache/*.npy 2>/dev/null | wc -l)
+          echo "📊 Tìm thấy $EMB_COUNT file embedding"
+          
+          if [ "$EMB_COUNT" -lt 3 ]; then
+            echo "⚠️ Cần có ít nhất 3 file embedding!"
+            exit 1
+          fi
+      
+      - name: Run ranking pipeline
+        id: pipeline
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          PYTHONUNBUFFERED: 1
+        run: |
+          cd scripts
+          set +e  # Don't exit immediately on error
+          python -u ranking_pipeline.py 2>&1 | tee pipeline_output.log
+          PIPELINE_EXIT_CODE=$?
+          set -e
+          
+          if [ $PIPELINE_EXIT_CODE -eq 0 ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "❌ Pipeline failed with exit code $PIPELINE_EXIT_CODE"
+          fi
+          
+          GAMES_COUNT=$(ls -1 ../lib/data/contexto/*.json 2>/dev/null | wc -l)
+          echo "games_count=$GAMES_COUNT" >> $GITHUB_OUTPUT
+          echo "📊 Processed $GAMES_COUNT games"
+          
+          # Exit with the original pipeline exit code
+          exit $PIPELINE_EXIT_CODE
+      
+      - name: Extract pipeline metrics
+        id: metrics
+        if: always()
+        run: |
+          cd scripts
+          
+          # Extract key metrics from pipeline output
+          NEW_KEYWORD=$(grep "Từ khóa hôm nay:" pipeline_output.log | sed "s/.*'\(.*\)'/\1/" || echo "N/A")
+          TOTAL_KEYWORDS=$(grep "Đã có .* từ khóa:" pipeline_output.log | grep -oP '\d+' | head -1 || echo "0")
+          VOCAB_SIZE=$(grep "Loaded .* words from vocab" pipeline_output.log | grep -oP '\d+' || echo "0")
+          EMBEDDING_TIME=$(grep "Completed in" pipeline_output.log | grep -oP '\d+\.\d+' || echo "0")
+          TOTAL_WORDS=$(grep "Tổng: .* từ," pipeline_output.log | grep -oP 'Tổng: \K\d+' || echo "0")
+          HINTS_COUNT=$(grep "Đã tạo .* hints:" pipeline_output.log | grep -oP '\d+' | head -1 || echo "0")
+          
+          # Save all metrics to JSON file (avoid GITHUB_OUTPUT entirely)
+          cat > metrics.json << METRICS_EOF
+          {
+            "new_keyword": "$NEW_KEYWORD",
+            "total_keywords": $TOTAL_KEYWORDS,
+            "vocab_size": $VOCAB_SIZE,
+            "embedding_time": $EMBEDDING_TIME,
+            "total_words": $TOTAL_WORDS,
+            "hints_count": $HINTS_COUNT
+          }
+          METRICS_EOF
+          
+          # Extract multi-line content to files for artifacts
+          grep "💡 Hint words:" pipeline_output.log | sed "s/.*Hint words: //" > hint_words.txt 2>/dev/null || echo "No hints found" > hint_words.txt
+          grep "Top 50 Mới:" pipeline_output.log | sed "s/.*Top 50 Mới: //" > top_words.txt 2>/dev/null || echo "No top words found" > top_words.txt
+          
+          echo "✅ Metrics saved to files for artifacts"
+      
+      - name: Upload metrics artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-metrics-${{ github.run_number }}
+          path: |
+            scripts/metrics.json
+            scripts/hint_words.txt
+            scripts/top_words.txt
+          retention-days: 7
+      
+      - name: Upload results as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ranking-output-${{ github.run_number }}
+          path: |
+            scripts/output/
+            scripts/pre_rerank/
+          retention-days: 30
+      
+      - name: Commit and push results
+        id: commit
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Create badge endpoint JSON
+          mkdir -p .github/badges
+          cat > .github/badges/contexto-stats.json << EOF
+          {
+            "schemaVersion": 1,
+            "label": "Contexto",
+            "message": "${{ steps.metrics.outputs.total_keywords }} games • ${{ steps.metrics.outputs.vocab_size }} words",
+            "color": "brightgreen"
+          }
+          EOF
+          
+          cat > .github/badges/latest-game.json << EOF
+          {
+            "schemaVersion": 1,
+            "label": "Latest Game",
+            "message": "${{ steps.metrics.outputs.new_keyword }}",
+            "color": "blue"
+          }
+          EOF
+          
+          git add lib/data/contexto/*.json .github/badges/*.json || true
+          
+          if git diff --staged --quiet; then
+            echo "status=no-changes" >> $GITHUB_OUTPUT
+            echo "ℹ️ No changes to commit"
+          else
+            git commit -m "🤖 Daily ranking update - $(date +'%Y-%m-%d')"
+            git push
+            
+            COMMIT_SHA=$(git rev-parse HEAD)
+            echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+            echo "status=committed" >> $GITHUB_OUTPUT
+            echo "✅ Committed: $COMMIT_SHA"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job 2: Summary
+  summary:
+    name: 📋 Workflow Summary
+    runs-on: ubuntu-latest
+    needs: [generate-ranking]
+    if: always()
+    
+    steps:
+      - name: Download metrics artifacts
+        if: needs.generate-ranking.outputs.hint_words_available == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: pipeline-metrics-${{ github.run_number }}
+          path: metrics/
+      
+      - name: Download metrics artifacts
+        if: needs.generate-ranking.outputs.ranking-status == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: pipeline-metrics-${{ github.run_number }}
+          path: metrics/
+      
+      - name: Generate workflow summary
+        run: |
+          echo "# 🎯 Contexto Daily Ranking Pipeline" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run:** #${{ github.run_number }} • **Date:** $(date +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Job Status
+          echo "## 📊 Pipeline Status" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.generate-ranking.result }}" == "success" ]; then
+            echo "✅ **Status:** Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Read metrics from artifacts if available
+          if [ -f "metrics/metrics.json" ]; then
+            # Parse JSON using grep
+            NEW_KEYWORD=$(grep -oP '"new_keyword":\s*"\K[^"]+' metrics/metrics.json || echo "N/A")
+            TOTAL_KEYWORDS=$(grep -oP '"total_keywords":\s*\K[0-9]+' metrics/metrics.json || echo "0")
+            VOCAB_SIZE=$(grep -oP '"vocab_size":\s*\K[0-9]+' metrics/metrics.json || echo "0")
+            EMBEDDING_TIME=$(grep -oP '"embedding_time":\s*\K[0-9.]+' metrics/metrics.json || echo "0")
+            TOTAL_WORDS=$(grep -oP '"total_words":\s*\K[0-9]+' metrics/metrics.json || echo "0")
+            HINTS_COUNT=$(grep -oP '"hints_count":\s*\K[0-9]+' metrics/metrics.json || echo "0")
+            
+            # Game Info
+            echo "## 🎲 Game Information" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🆕 New Keyword | **$NEW_KEYWORD** |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📚 Total Keywords | $TOTAL_KEYWORDS |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📖 Vocabulary Size | $VOCAB_SIZE words |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🎯 Total Words Ranked | $TOTAL_WORDS |" >> $GITHUB_STEP_SUMMARY
+            echo "| 💡 Hints Generated | $HINTS_COUNT |" >> $GITHUB_STEP_SUMMARY
+            echo "| ⚡ Embedding Time | ${EMBEDDING_TIME}s |" >> $GITHUB_STEP_SUMMARY
+            echo "| 💾 Cache Hit | ${{ needs.generate-ranking.outputs.cache-hit }} |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          
+            # Top Words and Hints from artifact files
+            if [ -f "metrics/top_words.txt" ]; then
+              echo "## 🏆 Top 50 Words" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              cat metrics/top_words.txt >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ -f "metrics/hint_words.txt" ]; then
+              echo "## 💡 Generated Hints (All $HINTS_COUNT)" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              cat metrics/hint_words.txt >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          # Commit Info
+          echo "## 📝 Commit Status" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.generate-ranking.outputs.commit-sha }}" != "" ]; then
+            echo "✅ **Committed & Pushed**" >> $GITHUB_STEP_SUMMARY
+            echo "- **SHA:** \`${{ needs.generate-ranking.outputs.commit-sha }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Message:** 🤖 Daily ranking update - $(date +'%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.generate-ranking.outputs.commit-status }}" == "no-changes" ]; then
+            echo "ℹ️ **No Changes**" >> $GITHUB_STEP_SUMMARY
+            echo "No new ranking data to commit." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Unknown Status**" >> $GITHUB_STEP_SUMMARY
+          fi
