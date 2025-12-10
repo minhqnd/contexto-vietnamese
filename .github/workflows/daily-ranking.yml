@@ -113,7 +113,7 @@ jobs:
       
       - name: Extract pipeline metrics
         id: metrics
-        if: always()
+        if: success()
         run: |
           cd scripts
           
@@ -144,7 +144,7 @@ jobs:
           echo "✅ Metrics saved to files for artifacts"
       
       - name: Upload metrics artifacts
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: pipeline-metrics-${{ github.run_number }}
@@ -155,6 +155,7 @@ jobs:
           retention-days: 7
       
       - name: Upload results as artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ranking-output-${{ github.run_number }}
@@ -165,6 +166,7 @@ jobs:
       
       - name: Commit and push results
         id: commit
+        if: success()
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
