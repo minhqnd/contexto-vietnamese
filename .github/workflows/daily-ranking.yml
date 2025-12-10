@@ -105,7 +105,7 @@ jobs:
             echo "❌ Pipeline failed with exit code $PIPELINE_EXIT_CODE"
           fi
           
-          GAMES_COUNT=$(ls -1 ../lib/data/contexto/*.json 2>/dev/null | wc -l)
+          GAMES_COUNT=$(ls -1 ../lib/contexto/*.json 2>/dev/null | wc -l)
           echo "games_count=$GAMES_COUNT" >> $GITHUB_OUTPUT
           echo "📊 Processed $GAMES_COUNT games"
           
@@ -196,7 +196,7 @@ jobs:
           }
           EOF
           
-          git add lib/data/contexto/*.json .github/badges/*.json || true
+          git add lib/contexto/*.json .github/badges/*.json || true
           
           if git diff --staged --quiet; then
             echo "status=no-changes" >> $GITHUB_OUTPUT
