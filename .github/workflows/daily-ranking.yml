@@ -96,24 +96,20 @@ jobs:
           PYTHONUNBUFFERED: 1
         run: |
           cd scripts
-          set +e  # Don't exit immediately on error
           python -u ranking_pipeline.py 2>&1 | tee pipeline_output.log
           PIPELINE_EXIT_CODE=$?
-          set -e
           
           if [ $PIPELINE_EXIT_CODE -eq 0 ]; then
             echo "status=success" >> $GITHUB_OUTPUT
+            GAMES_COUNT=$(ls -1 ../lib/contexto/*.json 2>/dev/null | wc -l)
+            echo "games_count=$GAMES_COUNT" >> $GITHUB_OUTPUT
+            echo "📊 Processed $GAMES_COUNT games"
           else
             echo "status=failed" >> $GITHUB_OUTPUT
             echo "❌ Pipeline failed with exit code $PIPELINE_EXIT_CODE"
+            echo "❌ Stopping workflow - reranking failed"
+            exit $PIPELINE_EXIT_CODE
           fi
-          
-          GAMES_COUNT=$(ls -1 ../lib/contexto/*.json 2>/dev/null | wc -l)
-          echo "games_count=$GAMES_COUNT" >> $GITHUB_OUTPUT
-          echo "📊 Processed $GAMES_COUNT games"
-          
-          # Exit with the original pipeline exit code
-          exit $PIPELINE_EXIT_CODE
       
       - name: Extract pipeline metrics
         id: metrics
