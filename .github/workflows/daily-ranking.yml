@@ -170,13 +170,19 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
+          # Read metrics from JSON file
+          cd scripts
+          NEW_KEYWORD=$(grep -oP '"new_keyword":\s*"\K[^"]+' metrics.json || echo "N/A")
+          TOTAL_KEYWORDS=$(grep -oP '"total_keywords":\s*\K[0-9]+' metrics.json || echo "0")
+          cd ..
+          
           # Create badge endpoint JSON
           mkdir -p .github/badges
           cat > .github/badges/contexto-stats.json << EOF
           {
             "schemaVersion": 1,
             "label": "Contexto",
-            "message": "${{ steps.metrics.outputs.total_keywords }} games • ${{ steps.metrics.outputs.vocab_size }} words",
+            "message": "$TOTAL_KEYWORDS Games",
             "color": "brightgreen"
           }
           EOF
@@ -185,7 +191,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "Latest Game",
-            "message": "${{ steps.metrics.outputs.new_keyword }}",
+            "message": "$NEW_KEYWORD",
             "color": "blue"
           }
           EOF

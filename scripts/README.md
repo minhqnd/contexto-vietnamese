@@ -82,7 +82,7 @@ Sau khi chạy, kết quả sẽ được:
 ```bash
 # Clone repo
 git clone <your-repo-url>
-cd moiWEB
+cd contexto-vietnamese
 
 # Cài dependencies
 pip install -r scripts/requirements.txt
