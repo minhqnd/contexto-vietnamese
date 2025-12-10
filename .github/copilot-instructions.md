@@ -5,7 +5,7 @@ This is a Next.js 16 app implementing a Vietnamese version of the Contexto word 
 
 **Key Components:**
 - `components/contexto/contexto-game.tsx`: Main game component using `useContextoGame` hook
-- `app/api/contexto/route.ts`: API endpoint handling guesses, hints, and closest words with Vietnamese text normalization
+- `app/api/route.ts`: API endpoint handling guesses, hints, and closest words with Vietnamese text normalization
 - `lib/contexto/*.json`: Game data files (e.g., `am_nhac.json`) with semantic rankings
 - `scripts/ranking_pipeline.py`: Daily ranking generation using sentence transformers and FAISS
 
@@ -17,7 +17,7 @@ This is a Next.js 16 app implementing a Vietnamese version of the Contexto word 
 
 ## Code Patterns
 - **State management**: Use `useContextoGame` hook for all game logic; avoid direct state manipulation
-- **API calls**: Fetch from `/api/contexto` with query params (`id`, `guess`, `hint`, `closest`)
+- **API calls**: Fetch from `/api` with query params (`id`, `guess`, `hint`, `closest`)
 - **Data persistence**: Use `storage.ts` functions for localStorage; games auto-save progress
 - **Vietnamese handling**: Always normalize text using the `normalizeVietnamese` function in API routes
 - **Caching**: API uses LRU cache for game data (max 20 games) to handle Vercel serverless limits
@@ -39,5 +39,5 @@ This is a Next.js 16 app implementing a Vietnamese version of the Contexto word 
 - **Add new game category**: Create new JSON file in `lib/contexto/` with keyword and rank_map
 - **Update rankings**: Run `scripts/ranking_pipeline.py` locally or wait for daily workflow
 - **Modify game UI**: Edit components in `components/contexto/modules/` and update `useContextoGame` hook
-- **API changes**: Update `app/api/contexto/route.ts` and ensure cache invalidation logic</content>
+- **API changes**: Update `app/api/route.ts` and ensure cache invalidation logic</content>
 <parameter name="filePath">/Users/minhqnd/CODE/contexto-vietnamese/.github/copilot-instructions.md

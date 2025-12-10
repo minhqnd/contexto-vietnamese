@@ -5,7 +5,7 @@ export const loadGamesList = async (): Promise<Array<{
   status: string
 }>> => {
   try {
-    const response = await fetch('/api/contexto/games')
+    const response = await fetch('/api/games')
     const data = await response.json()
     if (data.games) {
       const formattedGames = Object.entries(data.games)
@@ -76,7 +76,7 @@ export const loadGamesList = async (): Promise<Array<{
 // Fetch secret word from API (only when giving up)
 export const fetchSecretWord = async (gameId: number): Promise<string | null> => {
   try {
-    const response = await fetch(`/api/contexto?id=${gameId}&secret=true`)
+    const response = await fetch(`/api?id=${gameId}&secret=true`)
     const data = await response.json()
 
     if (data.secretWord) {
@@ -91,7 +91,7 @@ export const fetchSecretWord = async (gameId: number): Promise<string | null> =>
 // Process a guess
 export const processGuess = async (gameNumber: number, guessWord: string): Promise<{ rank: number | null }> => {
   try {
-    const response = await fetch(`/api/contexto?id=${gameNumber}&guess=${encodeURIComponent(guessWord)}`)
+    const response = await fetch(`/api?id=${gameNumber}&guess=${encodeURIComponent(guessWord)}`)
     const data = await response.json()
     return { rank: data.rank }
   } catch (error) {
@@ -103,7 +103,7 @@ export const processGuess = async (gameNumber: number, guessWord: string): Promi
 // Get hint
 export const getHint = async (gameNumber: number, lowestRank: number | null): Promise<{ hint: string; rank: number } | null> => {
   try {
-    const url = `/api/contexto?id=${gameNumber}&hint=true${lowestRank ? `&lowestRank=${lowestRank}` : ''}`
+    const url = `/api?id=${gameNumber}&hint=true${lowestRank ? `&lowestRank=${lowestRank}` : ''}`
     const response = await fetch(url)
     const data = await response.json()
 
@@ -121,7 +121,7 @@ export const getHint = async (gameNumber: number, lowestRank: number | null): Pr
 // Fetch closest words
 export const fetchClosestWords = async (gameNumber: number, secretWord: string): Promise<Array<{ word: string; rank: number }>> => {
   try {
-    const response = await fetch(`/api/contexto?id=${gameNumber}&closest=true&guess=${encodeURIComponent(secretWord)}`)
+    const response = await fetch(`/api?id=${gameNumber}&closest=true&guess=${encodeURIComponent(secretWord)}`)
     const data = await response.json()
 
     if (data.closestWords) {

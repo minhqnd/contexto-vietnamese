@@ -63,7 +63,7 @@ Dự án sử dụng hệ thống pipeline tự động chạy qua GitHub Action
 ## Cấu trúc dự án
 ```
 ├── app/
-│   ├── api/contexto/
+│   ├── api/
 │   │   ├── route.ts          # API chính (guesses, hints, closest)
 │   │   └── games/route.ts    # API danh sách games
 │   ├── layout.tsx            # Layout với metadata SEO
@@ -164,7 +164,7 @@ Dự án sử dụng GitHub Actions để tự động hóa việc tạo game m�
 
 ## API Documentation
 
-### GET /api/contexto
+### GET /api
 Xử lý guesses, hints, và closest words.
 
 **Query Parameters:**
@@ -198,7 +198,7 @@ Xử lý guesses, hints, và closest words.
 }
 ```
 
-### GET /api/contexto/games
+### GET /api/games
 Lấy danh sách tất cả games.
 
 **Response:**
