@@ -1,5 +1,10 @@
 # Contexto Tiếng Việt - Vietnamese Contexto | @minhqnd
 
+[![Daily Ranking](https://github.com/minhqnd/contexto-vietnamese/actions/workflows/daily-ranking.yml/badge.svg)](https://github.com/minhqnd/contexto-vietnamese/actions/workflows/daily-ranking.yml)
+![Contexto Stats](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/minhqnd/contexto-vietnamese/main/.github/badges/contexto-stats.json)
+![Latest Game](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/minhqnd/contexto-vietnamese/main/.github/badges/latest-game.json)
+![Last Update](https://img.shields.io/github/last-commit/minhqnd/contexto-vietnamese/main?label=Last%20Update)
+
 ![Contexto Vietnamese](/public/image/contexto_vi_1200x630.png)
 
 **Contexto Tiếng Việt** là trò chơi đoán từ dựa trên mức độ liên quan về mặt ngữ nghĩa (Semantic Similarity). Bạn đoán một từ tiếng Việt, AI sẽ đánh giá xem từ đó có liên quan, "same same" với từ bí mật hay không. Luật chơi cực đơn giản: đoán bừa một từ, AI bảo bạn đang "Gần" hay "Xa" từ bí mật. Nhiệm vụ của bạn là dựa vào màu sắc và số Rank để "khoanh vùng" ngữ nghĩa và tìm ra từ khóa cuối cùng.
