@@ -22,6 +22,12 @@
 4. Sử dụng **Gợi ý** để nhận từ mẫu (tối đa 3 lần)
 5. Nếu đoán đúng hoặc hết lượt, từ bí mật sẽ hiển thị
 
+
+## Demo
+**Chơi thử ngay tại**: [https://minhqnd.com/contexto](https://minhqnd.com/contexto)
+
+![Contexto](/public/image/demo_contexto.png)
+
 ## Cơ chế hoạt động
 
 ### Pipeline tạo game hàng ngày
@@ -78,11 +84,6 @@ Dự án sử dụng hệ thống pipeline tự động chạy qua GitHub Action
 └── .github/workflows/
     └── daily-ranking.yml     # GitHub Actions daily pipeline
 ```
-
-## Demo
-**Chơi thử ngay tại**: [https://minhqnd.com/contexto](https://minhqnd.com/contexto)
-
-![Contexto](/public/image/demo_contexto.png)
 
 ## Cài đặt & chạy
 ### Yêu cầu
@@ -141,17 +142,11 @@ Dự án sử dụng GitHub Actions để tự động hóa việc tạo game m�
 ### Setup Google Gemini API Key
 Để GitHub Actions có thể chạy pipeline tạo game, bạn cần setup Google Gemini API key:
 
-1. **Tạo Google AI Studio API Key**:
-   - Truy cập [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - Tạo API key mới
-   - Copy API key
+1. Vào **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
 
-2. **Thêm vào GitHub Secrets**:
-   - Vào repository trên GitHub
-   - Settings → Secrets and variables → Actions
-   - New repository secret
-   - Name: `GOOGLE_API_KEY`
-   - Value: Paste API key của bạn
+2. Thêm secret:
+- **Name**: `GOOGLE_API_KEY`
+- **Value**: API key của bạn từ [Google AI Studio](https://aistudio.google.com/app/apikey)
 
 3. **Verify Setup**:
    - Trigger workflow manually từ Actions tab
