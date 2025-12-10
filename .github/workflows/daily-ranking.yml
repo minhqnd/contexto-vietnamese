@@ -6,6 +6,9 @@ on:
     - cron: '30 16 * * *'
   workflow_dispatch: # Cho phép chạy thủ công
 
+permissions:
+  contents: write
+
 jobs:
   # Job 1: Main pipeline - Setup, download (if needed), và generate ranking
   generate-ranking:
