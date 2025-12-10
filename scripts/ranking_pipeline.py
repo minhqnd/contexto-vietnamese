@@ -38,7 +38,7 @@ OUTPUT_FOLDER = "output"
 TOP_K_RERANK = 1000
 
 # Đường dẫn đến thư mục contexto trong project
-CONTEXTO_DIR = Path(__file__).parent.parent / "lib" / "data" / "contexto"
+CONTEXTO_DIR = Path(__file__).parent.parent / "lib" / "contexto"
 
 # API Configuration
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY', '')
