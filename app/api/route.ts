@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
+// CORS headers helper
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+};
+
 // Hàm chuẩn hóa tiếng Việt: sửa các trường hợp dấu sai vị trí
 const normalizeVietnamese = (text: string): string => {
     return text
@@ -88,6 +95,13 @@ async function getGameData(slug: string) {
     return gameDataCache.get(slug)!;
 }
 
+// Handle OPTIONS preflight requests
+export async function OPTIONS() {
+    return NextResponse.json({}, {
+        headers: corsHeaders
+    });
+}
+
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const id = Number(searchParams.get("id"));
@@ -99,13 +113,19 @@ export async function GET(req: Request) {
     const lowestRank = searchParams.get("lowestRank") ? Number(searchParams.get("lowestRank")) : null;
 
     if (!id) {
-        return NextResponse.json({ error: "Thiếu id" }, { status: 400 });
+        return NextResponse.json({ error: "Thiếu id" }, { 
+            status: 400,
+            headers: corsHeaders 
+        });
     }
 
     const rankLoaderData = await getRankLoader();
     const game = rankLoaderData![id];
     if (!game) {
-        return NextResponse.json({ error: "Không tìm thấy game" }, { status: 404 });
+        return NextResponse.json({ error: "Không tìm thấy game" }, { 
+            status: 404,
+            headers: corsHeaders 
+        });
     }
 
     try {
@@ -129,6 +149,7 @@ export async function GET(req: Request) {
                     // Bỏ gameId để giảm thông tin không cần thiết
                 }, {
                     headers: {
+                        ...corsHeaders,
                         // Cache secret word trong 1 năm (31536000 giây)
                         'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=86400',
                         'CDN-Cache-Control': 'public, max-age=31536000',
@@ -136,7 +157,10 @@ export async function GET(req: Request) {
                     }
                 });
             } else {
-                return NextResponse.json({ error: "Không tìm thấy từ bí mật" }, { status: 404 });
+                return NextResponse.json({ error: "Không tìm thấy từ bí mật" }, { 
+                    status: 404,
+                    headers: corsHeaders 
+                });
             }
         }
 
@@ -158,7 +182,10 @@ export async function GET(req: Request) {
                 if (lowestRank && lowestRank <= 2) {
                     return NextResponse.json({
                         error: "Bạn đã siêu gần rồi! Hãy tự tìm câu trả lời nhé! 🔥"
-                    }, { status: 400 });
+                    }, { 
+                        status: 400,
+                        headers: corsHeaders 
+                    });
                 }
 
                 // Sắp xếp hints theo thứ tự giảm dần (từ to đến bé)
@@ -184,6 +211,7 @@ export async function GET(req: Request) {
                             rank: suitableHint
                         }, {
                             headers: {
+                                ...corsHeaders,
                                 // Cache hint trong 1 năm (31536000 giây) vì hint predefined không thay đổi
                                 'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=86400',
                                 'CDN-Cache-Control': 'public, max-age=31536000',
@@ -256,7 +284,10 @@ export async function GET(req: Request) {
                 // Đã rất gần (rank <= 2) -> không cho hint nữa
                 return NextResponse.json({
                     error: "Bạn đã siêu gần rồi! Hãy tự tìm câu trả lời nhé! 🔥"
-                }, { status: 400 });
+                }, { 
+                    status: 400,
+                    headers: corsHeaders 
+                });
             }
 
             // Tìm các từ trong target rank range
@@ -300,7 +331,10 @@ export async function GET(req: Request) {
                 if (fallbackWords.length === 0) {
                     return NextResponse.json({
                         error: "Không thể tìm thấy từ hint phù hợp cho level này"
-                    }, { status: 404 });
+                    }, { 
+                        status: 404,
+                        headers: corsHeaders 
+                    });
                 }
 
                 // Chọn ngẫu nhiên từ fallback words
@@ -314,6 +348,7 @@ export async function GET(req: Request) {
                     // Bỏ gameId để giảm thông tin không cần thiết
                 }, {
                     headers: {
+                        ...corsHeaders,
                         // Cache fallback hint ngắn hơn (1 giờ) vì là random
                         'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=1800',
                         'CDN-Cache-Control': 'public, max-age=3600',
@@ -333,6 +368,7 @@ export async function GET(req: Request) {
                 // Bỏ gameId để giảm thông tin không cần thiết
             }, {
                 headers: {
+                    ...corsHeaders,
                     // Cache random hint ngắn hơn (1 giờ) vì là random
                     'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=1800',
                     'CDN-Cache-Control': 'public, max-age=3600',
@@ -345,13 +381,19 @@ export async function GET(req: Request) {
         if (getClosest) {
             // Kiểm tra bảo mật: yêu cầu guess phải đúng từ bí mật (rank 1)
             if (!guess) {
-                return NextResponse.json({ error: "Thiếu từ xác thực" }, { status: 400 });
+                return NextResponse.json({ error: "Thiếu từ xác thực" }, { 
+                    status: 400,
+                    headers: corsHeaders 
+                });
             }
 
             const guessRank = rank_map[guess] as number | undefined;
             if (!guessRank || guessRank !== 1) {
                 console.log('[CLOSEST] Unauthorized:', { guess, rank: guessRank });
-                return NextResponse.json({ error: "Chưa đoán đúng từ bí mật" }, { status: 403 });
+                return NextResponse.json({ error: "Chưa đoán đúng từ bí mật" }, { 
+                    status: 403,
+                    headers: corsHeaders 
+                });
             }
 
             // Chuyển đổi rank_map thành array và sắp xếp theo rank
@@ -373,6 +415,7 @@ export async function GET(req: Request) {
                 // Bỏ gameId để giảm thông tin không cần thiết
             }, {
                 headers: {
+                    ...corsHeaders,
                     // Cache 200 closest words trong 1 năm
                     'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=86400',
                     'CDN-Cache-Control': 'public, max-age=31536000',
@@ -383,13 +426,19 @@ export async function GET(req: Request) {
 
         // Logic cũ cho việc đoán từ
         if (!guess) {
-            return NextResponse.json({ error: "Thiếu guess" }, { status: 400 });
+            return NextResponse.json({ error: "Thiếu guess" }, { 
+                status: 400,
+                headers: corsHeaders 
+            });
         }
 
         const entry = rank_map[guess];
         if (!entry) {
             console.log('[GUESS] Not found:', { id, word: guess });
-            return NextResponse.json({ rank: null, score: null }, { status: 404 });
+            return NextResponse.json({ rank: null, score: null }, { 
+                status: 404,
+                headers: corsHeaders 
+            });
         }
 
         const rank = entry as number;
@@ -400,6 +449,7 @@ export async function GET(req: Request) {
             // Chỉ trả về rank và score cần thiết cho gameplay
         }, {
             headers: {
+                ...corsHeaders,
                 // Cache guess result trong 1 năm vì rank không thay đổi
                 'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=86400',
                 'CDN-Cache-Control': 'public, max-age=31536000',
@@ -408,6 +458,9 @@ export async function GET(req: Request) {
         });
     } catch (err) {
         console.error("❌ [ERROR]", { id, guess, getClosest, getSecret, getHint, lowestRank, error: err });
-        return NextResponse.json({ error: "Lỗi khi đọc dữ liệu game" }, { status: 500 });
+        return NextResponse.json({ error: "Lỗi khi đọc dữ liệu game" }, { 
+            status: 500,
+            headers: corsHeaders 
+        });
     }
 }

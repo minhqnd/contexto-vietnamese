@@ -2,10 +2,24 @@ import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
+// CORS headers helper
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+};
+
 // Define types for the game data
 interface GameData {
     createdAt: string;
     slug?: string; // slug có thể chứa target word nên chúng ta sẽ không expose
+}
+
+// Handle OPTIONS preflight requests
+export async function OPTIONS() {
+    return NextResponse.json({}, {
+        headers: corsHeaders
+    });
 }
 
 export async function GET() {
@@ -46,6 +60,7 @@ export async function GET() {
             games: optimizedGames
         }, {
             headers: {
+                ...corsHeaders,
                 // Cache sẽ hết hạn vào 00:00 giờ Việt Nam
                 'Cache-Control': `public, s-maxage=${maxAge}, stale-while-revalidate=3600`,
                 'CDN-Cache-Control': `public, max-age=${maxAge}`,
@@ -54,6 +69,9 @@ export async function GET() {
         });
     } catch (err) {
         console.error("❌ Lỗi khi đọc danh sách games:", err);
-        return NextResponse.json({ error: "Lỗi khi đọc danh sách games" }, { status: 500 });
+        return NextResponse.json({ error: "Lỗi khi đọc danh sách games" }, { 
+            status: 500,
+            headers: corsHeaders 
+        });
     }
 }
