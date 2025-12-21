@@ -90,9 +90,9 @@ def create_rank_loader():
 
         print(f"   ✅ Thêm: #{max_index} - {slug} (tạo: {created_date})")
 
-    # Ghi ra file rankLoader.json
+    # Ghi ra file rankLoader.json (compact format for minimal size)
     with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(existing_rank_loader, f, indent=4, ensure_ascii=False)
+        json.dump(existing_rank_loader, f, ensure_ascii=False, separators=(',', ':'))
 
     print(f"\n🎉 Đã cập nhật {output_file}")
     print(f"📊 Tổng cộng {len(existing_rank_loader)} game (thêm mới {len(new_files)} game)")
