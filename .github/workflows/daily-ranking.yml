@@ -95,20 +95,40 @@ jobs:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           PYTHONUNBUFFERED: 1
         run: |
-          set -o pipefail  # Ensure pipeline returns first non-zero exit code
+          set -o pipefail
           cd scripts
-          python -u ranking_pipeline.py 2>&1 | tee pipeline_output.log
-          PIPELINE_EXIT_CODE=$?
           
-          if [ $PIPELINE_EXIT_CODE -eq 0 ]; then
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          SUCCESS=false
+          PIPELINE_EXIT_CODE=0
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "🚀 Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            python -u ranking_pipeline.py 2>&1 | tee pipeline_output.log
+            PIPELINE_EXIT_CODE=$?
+            
+            if [ $PIPELINE_EXIT_CODE -eq 0 ]; then
+              SUCCESS=true
+              break
+            fi
+            
+            echo "⚠️ Attempt $ATTEMPT failed with exit code $PIPELINE_EXIT_CODE"
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "🕒 Waiting 5 minutes before retrying..."
+              sleep 300
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          
+          if [ "$SUCCESS" = true ]; then
             echo "status=success" >> $GITHUB_OUTPUT
             GAMES_COUNT=$(ls -1 ../lib/contexto/*.json 2>/dev/null | wc -l)
             echo "games_count=$GAMES_COUNT" >> $GITHUB_OUTPUT
             echo "📊 Processed $GAMES_COUNT games"
           else
             echo "status=failed" >> $GITHUB_OUTPUT
-            echo "❌ Pipeline failed with exit code $PIPELINE_EXIT_CODE"
-            echo "❌ Stopping workflow - reranking failed"
+            echo "❌ Pipeline failed after $MAX_ATTEMPTS attempts"
             exit $PIPELINE_EXIT_CODE
           fi
       
