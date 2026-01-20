@@ -420,25 +420,57 @@ export async function GET(req: Request) {
             });
         }
 
-        // Logic cũ cho việc đoán từ
-        if (!guess) {
+        // Logic cho việc đoán từ - search cả 2 variant: original và normalized
+        if (!rawGuess) {
             return NextResponse.json({ error: "Thiếu guess" }, {
                 status: 400,
                 headers: corsHeaders
             });
         }
 
-        const entry = rank_map[guess];
-        if (!entry) {
-            console.log('[GUESS] Not found:', { id, word: guess });
+        // Tìm rank cho cả 2 dạng: original (rawGuess) và normalized (guess)
+        // Sau khi check rawGuess ở trên, guess chắc chắn có giá trị
+        const normalizedGuess = guess as string;
+        const originalEntry = rank_map[rawGuess];
+        const normalizedEntry = rawGuess !== normalizedGuess ? rank_map[normalizedGuess] : undefined;
+
+        const originalRank = originalEntry ? (originalEntry as number) : null;
+        const normalizedRank = normalizedEntry ? (normalizedEntry as number) : null;
+
+        // Nếu cả 2 đều không tìm thấy
+        if (originalRank === null && normalizedRank === null) {
+            console.log('[GUESS] Not found:', { id, original: rawGuess, normalized: normalizedGuess });
             return NextResponse.json({ rank: null, score: null }, {
                 status: 404,
                 headers: corsHeaders
             });
         }
 
-        const rank = entry as number;
-        console.log('[GUESS]', { id, word: guess, rank });
+        // Chọn rank thấp hơn (tốt hơn) giữa 2 dạng
+        let bestRank: number;
+        let displayWord: string;
+
+        if (originalRank !== null && normalizedRank !== null) {
+            // Cả 2 đều có trong rank_map -> chọn cái thấp hơn
+            if (originalRank <= normalizedRank) {
+                bestRank = originalRank;
+                displayWord = rawGuess;
+            } else {
+                bestRank = normalizedRank;
+                displayWord = normalizedGuess;
+            }
+            console.log('[GUESS] Both found, picked better:', { id, original: rawGuess, originalRank, normalized: normalizedGuess, normalizedRank, chosen: displayWord, bestRank });
+        } else if (originalRank !== null) {
+            bestRank = originalRank;
+            displayWord = rawGuess;
+            console.log('[GUESS] Original found:', { id, word: displayWord, rank: bestRank });
+        } else {
+            bestRank = normalizedRank!;
+            displayWord = normalizedGuess;
+            console.log('[GUESS] Normalized found:', { id, original: rawGuess, normalized: displayWord, rank: bestRank });
+        }
+
+        const rank = bestRank;
 
         return NextResponse.json({
             rank: rank
