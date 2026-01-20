@@ -13,16 +13,47 @@ const corsHeaders = {
 // Chỉ áp dụng cho oa, oe, uy. KHÔNG áp dụng cho ui (túi, bụi đã đúng)
 const normalizeVietnamese = (text: string): string => {
     return text
-        .replaceAll(/óa/g, 'oá')  // hóa -> hoá, khóa -> khoá
-        .replaceAll(/òa/g, 'oà')  // hòa -> hoà  
-        .replaceAll(/ỏa/g, 'oả')  // hỏa -> hoả
-        .replaceAll(/õa/g, 'oã')  // hõa -> hoã
-        .replaceAll(/ọa/g, 'oạ')  // họa -> hoạ
-        .replaceAll(/úy/g, 'uý')  // thúy -> thuý
-        .replaceAll(/ùy/g, 'uỳ')  // thùy -> thuỳ
-        .replaceAll(/ủy/g, 'uỷ')  // thủy -> thuỷ  
-        .replaceAll(/ũy/g, 'uỹ')  // thũy -> thuỹ
-        .replaceAll(/ụy/g, 'uỵ'); // thụy -> thuỵ
+        // óa -> oá (hóa -> hoá, khóa -> khoá)
+        .replaceAll(/óa/g, 'oá')
+        .replaceAll(/òa/g, 'oà')
+        .replaceAll(/ỏa/g, 'oả')
+        .replaceAll(/õa/g, 'oã')
+        .replaceAll(/ọa/g, 'oạ')
+        // úy -> uý (thúy -> thuý)
+        .replaceAll(/úy/g, 'uý')
+        .replaceAll(/ùy/g, 'uỳ')
+        .replaceAll(/ủy/g, 'uỷ')
+        .replaceAll(/ũy/g, 'uỹ')
+        .replaceAll(/ụy/g, 'uỵ')
+        // i -> y cuối âm tiết (lí -> lý, mĩ -> mỹ, kĩ -> kỹ)
+        .replaceAll(/í(?=\s|$)/g, 'ý')
+        .replaceAll(/ì(?=\s|$)/g, 'ỳ')
+        .replaceAll(/ỉ(?=\s|$)/g, 'ỷ')
+        .replaceAll(/ĩ(?=\s|$)/g, 'ỹ')
+        .replaceAll(/ị(?=\s|$)/g, 'ỵ');
+};
+
+// Hàm chuyển ngược: kiểu cũ sang kiểu mới (khoá -> khóa, hoá -> hóa)
+const denormalizeVietnamese = (text: string): string => {
+    return text
+        // oá -> óa (hoá -> hóa, khoá -> khóa)
+        .replaceAll(/oá/g, 'óa')
+        .replaceAll(/oà/g, 'òa')
+        .replaceAll(/oả/g, 'ỏa')
+        .replaceAll(/oã/g, 'õa')
+        .replaceAll(/oạ/g, 'ọa')
+        // uý -> úy (thuý -> thúy)
+        .replaceAll(/uý/g, 'úy')
+        .replaceAll(/uỳ/g, 'ùy')
+        .replaceAll(/uỷ/g, 'ủy')
+        .replaceAll(/uỹ/g, 'ũy')
+        .replaceAll(/uỵ/g, 'ụy')
+        // y -> i cuối âm tiết (lý -> lí, mỹ -> mĩ, kỹ -> kĩ)
+        .replaceAll(/ý(?=\s|$)/g, 'í')
+        .replaceAll(/ỳ(?=\s|$)/g, 'ì')
+        .replaceAll(/ỷ(?=\s|$)/g, 'ỉ')
+        .replaceAll(/ỹ(?=\s|$)/g, 'ĩ')
+        .replaceAll(/ỵ(?=\s|$)/g, 'ị');
 };
 
 // ✅ In-memory cache cho game data
@@ -428,49 +459,38 @@ export async function GET(req: Request) {
             });
         }
 
-        // Tìm rank cho cả 2 dạng: original (rawGuess) và normalized (guess)
-        // Sau khi check rawGuess ở trên, guess chắc chắn có giá trị
-        const normalizedGuess = guess as string;
-        const originalEntry = rank_map[rawGuess];
-        const normalizedEntry = rawGuess !== normalizedGuess ? rank_map[normalizedGuess] : undefined;
+        // Tìm rank cho cả 2 dạng dấu: oá (cũ) và óa (mới)
+        const oldStyleGuess = normalizeVietnamese(rawGuess);    // khóa -> khoá  
+        const newStyleGuess = denormalizeVietnamese(rawGuess);  // khoá -> khóa
 
-        const originalRank = originalEntry ? (originalEntry as number) : null;
-        const normalizedRank = normalizedEntry ? (normalizedEntry as number) : null;
+        // Tìm rank cho cả 2 dạng (một trong 2 sẽ trùng với rawGuess)
+        const oldStyleEntry = rank_map[oldStyleGuess];
+        const newStyleEntry = oldStyleGuess !== newStyleGuess ? rank_map[newStyleGuess] : undefined;
+
+        const oldStyleRank = oldStyleEntry ? (oldStyleEntry as number) : null;
+        const newStyleRank = newStyleEntry ? (newStyleEntry as number) : null;
 
         // Nếu cả 2 đều không tìm thấy
-        if (originalRank === null && normalizedRank === null) {
-            console.log('[GUESS] Not found:', { id, original: rawGuess, normalized: normalizedGuess });
+        if (oldStyleRank === null && newStyleRank === null) {
+            console.log('[GUESS] Not found:', { id, oldStyle: oldStyleGuess, newStyle: newStyleGuess });
             return NextResponse.json({ rank: null, score: null }, {
                 status: 404,
                 headers: corsHeaders
             });
         }
 
-        // Chọn rank thấp hơn (tốt hơn) giữa 2 dạng
-        let bestRank: number;
-        let displayWord: string;
-
-        if (originalRank !== null && normalizedRank !== null) {
-            // Cả 2 đều có trong rank_map -> chọn cái thấp hơn
-            if (originalRank <= normalizedRank) {
-                bestRank = originalRank;
-                displayWord = rawGuess;
-            } else {
-                bestRank = normalizedRank;
-                displayWord = normalizedGuess;
-            }
-            console.log('[GUESS] Both found, picked better:', { id, original: rawGuess, originalRank, normalized: normalizedGuess, normalizedRank, chosen: displayWord, bestRank });
-        } else if (originalRank !== null) {
-            bestRank = originalRank;
-            displayWord = rawGuess;
-            console.log('[GUESS] Original found:', { id, word: displayWord, rank: bestRank });
+        // Chọn rank thấp hơn (tốt hơn)
+        let rank: number;
+        if (oldStyleRank !== null && newStyleRank !== null) {
+            rank = Math.min(oldStyleRank, newStyleRank);
+            console.log('[GUESS] Both found:', { id, oldStyle: `${oldStyleGuess}=${oldStyleRank}`, newStyle: `${newStyleGuess}=${newStyleRank}`, chosen: rank });
+        } else if (oldStyleRank !== null) {
+            rank = oldStyleRank;
+            console.log('[GUESS] Old style found:', { id, word: oldStyleGuess, rank });
         } else {
-            bestRank = normalizedRank!;
-            displayWord = normalizedGuess;
-            console.log('[GUESS] Normalized found:', { id, original: rawGuess, normalized: displayWord, rank: bestRank });
+            rank = newStyleRank!;
+            console.log('[GUESS] New style found:', { id, word: newStyleGuess, rank });
         }
-
-        const rank = bestRank;
 
         return NextResponse.json({
             rank: rank
