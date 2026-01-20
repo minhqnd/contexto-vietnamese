@@ -115,6 +115,28 @@ def remove_vietnamese_accents(text):
     normalized = unicodedata.normalize('NFD', text)
     return "".join([c for c in normalized if unicodedata.category(c) != 'Mn'])
 
+def normalize_vietnamese_diacritics(text):
+    """
+    Chuẩn hóa dấu tiếng Việt từ kiểu mới sang kiểu cũ.
+    LLM thường dùng kiểu mới (khóa, hóa), nhưng từ điển dùng kiểu cũ (khoá, hoá).
+    
+    Quy tắc: Dấu đặt trên nguyên âm đầu của nhị trùng âm (oa, oe, uy)
+    Lưu ý: KHÔNG áp dụng cho "ui" vì túi, bụi đã đúng
+    """
+    replacements = [
+        # óa -> oá (hóa -> hoá, khóa -> khoá)
+        ('óa', 'oá'), ('òa', 'oà'), ('ỏa', 'oả'), ('õa', 'oã'), ('ọa', 'oạ'),
+        # úy -> uý (thúy -> thuý)
+        ('úy', 'uý'), ('ùy', 'uỳ'), ('ủy', 'uỷ'), ('ũy', 'uỹ'), ('ụy', 'uỵ'),
+        # oe combinations
+        ('óe', 'oé'), ('òe', 'oè'), ('ỏe', 'oẻ'), ('õe', 'oẽ'), ('ọe', 'oẹ'),
+    ]
+    
+    result = text
+    for old, new in replacements:
+        result = result.replace(old, new)
+    return result
+
 def load_vocab():
     # Tìm file clean_dict.pkl ở nhiều vị trí
     possible_paths = [
@@ -205,7 +227,7 @@ Ví dụ từ tốt: "bác sĩ", "xe máy", "trường học", "cà phê", "nỗ
 CHỈ TRẢ VỀ MỘT TỪ DUY NHẤT, không giải thích.
     """
     
-    max_retries = 3
+    max_retries = 2
     for attempt in range(max_retries):
         try:
             response = client.models.generate_content(
@@ -217,7 +239,7 @@ CHỈ TRẢ VỀ MỘT TỪ DUY NHẤT, không giải thích.
                 },
             )
             result = DailyTargetResponse.model_validate_json(response.text)
-            target = result.target.lower().strip()
+            target = normalize_vietnamese_diacritics(result.target.lower().strip())
             
             # Kiểm tra nếu từ đã tồn tại
             if target in existing_keywords:
@@ -230,6 +252,10 @@ CHỈ TRẢ VỀ MỘT TỪ DUY NHẤT, không giải thích.
             print(f"   ⚠️ Lỗi khi tạo target (lần {attempt + 1}): {e}")
             if attempt == max_retries - 1:
                 raise Exception(f"Không thể tạo target sau {max_retries} lần thử: {e}")
+            # Longer backoff for rate limits: 15s, 30s
+            delay = 15 * (attempt + 1)
+            print(f"   ⏳ Đợi {delay}s trước khi thử lại...")
+            time.sleep(delay)
     
     raise Exception("Không thể tạo target")
 
@@ -271,22 +297,29 @@ Ví dụ minh họa:
 Từ khóa: "{target}"
     """
 
-    try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "response_json_schema": BrainstormResponse.model_json_schema(),
-            },
-        )
-        result = BrainstormResponse.model_validate_json(response.text)
-        return [w.lower().strip() for w in result.words]
-    except Exception as e:
-        print(f"   ⚠️ Lỗi Brainstorm: {e}")
-        raise Exception(f"Không thể brainstorm: {e}")
+    max_retries = 2
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "response_json_schema": BrainstormResponse.model_json_schema(),
+                },
+            )
+            result = BrainstormResponse.model_validate_json(response.text)
+            return [normalize_vietnamese_diacritics(w.lower().strip()) for w in result.words]
+        except Exception as e:
+            print(f"   ⚠️ Lỗi Brainstorm (lần {attempt + 1}): {e}")
+            if attempt == max_retries - 1:
+                raise Exception(f"Không thể brainstorm sau {max_retries} lần thử: {e}")
+            # Longer backoff for rate limits: 15s, 30s
+            delay = 15 * (attempt + 1)
+            print(f"   ⏳ Đợi {delay}s trước khi thử lại...")
+            time.sleep(delay)
 
-def get_llm_scores(target, words, max_retries=3):
+def get_llm_scores(target, words, max_retries=2):
     """Chấm điểm toàn bộ danh sách từ trong 1 lần để đảm bảo context toàn cục"""
     print(f"   🤖 [LLM] Đang chấm điểm Gameplay cho: '{target}'...")
     
@@ -333,15 +366,21 @@ def get_llm_scores(target, words, max_retries=3):
             )
             result = RankingResponse.model_validate_json(response.text)
             print(f"   ✅ Chấm điểm thành công {len(result.items)}/{len(words)} từ")
+            # Chuẩn hóa dấu tiếng Việt cho các từ trong kết quả
+            for item in result.items:
+                item.w = normalize_vietnamese_diacritics(item.w)
             return result.items
         except Exception as e:
             print(f"   ⚠️ Lỗi API (Lần {attempt+1}/{max_retries}): {e}")
             if attempt == max_retries - 1:
                 raise Exception(f"Không thể chấm điểm sau {max_retries} lần thử: {e}")
-            time.sleep(2)
+            # Longer backoff for rate limits: 15s, 30s
+            delay = 15 * (attempt + 1)
+            print(f"   ⏳ Đợi {delay}s trước khi thử lại...")
+            time.sleep(delay)
     raise Exception("Không thể chấm điểm")
 
-def generate_hints_with_llm(target, rank_map, max_retries=3):
+def generate_hints_with_llm(target, rank_map, max_retries=2):
     """
     Tạo hints cho game bằng LLM, chọn nhiều từ đại diện cho từng khoảng rank.
     
@@ -438,7 +477,10 @@ Yêu cầu:
             print(f"   ⚠️ Lỗi khi tạo hints (Lần {attempt+1}): {e}")
             if attempt == max_retries - 1:
                 raise Exception(f"Không thể tạo hints sau {max_retries} lần thử: {e}")
-            time.sleep(2)
+            # Longer backoff for rate limits: 15s, 30s
+            delay = 15 * (attempt + 1)
+            print(f"   ⏳ Đợi {delay}s trước khi thử lại...")
+            time.sleep(delay)
     
     raise Exception("Không thể tạo hints")
 

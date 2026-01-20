@@ -51,7 +51,7 @@ export const useContextoGame = () => {
 
       const completedGames = getCompletedGames()
       const currentGameId = getCurrentGame()
-      
+
       if (currentGameId && gameIds.includes(currentGameId)) {
         // Kiểm tra xem game hiện tại có progress không
         const currentProgress = loadGameProgress(currentGameId)

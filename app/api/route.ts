@@ -9,24 +9,20 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// Hàm chuẩn hóa tiếng Việt: sửa các trường hợp dấu sai vị trí
+// Hàm chuẩn hóa tiếng Việt: chuyển kiểu mới sang kiểu cũ (khóa -> khoá, hóa -> hoá)
+// Chỉ áp dụng cho oa, oe, uy. KHÔNG áp dụng cho ui (túi, bụi đã đúng)
 const normalizeVietnamese = (text: string): string => {
     return text
-        .replaceAll(/óa/g, 'oá')  // hoá -> hóa
-        .replaceAll(/òa/g, 'oà')  // hoà -> hòa  
-        .replaceAll(/ỏa/g, 'oả')  // hoả -> hỏa
-        .replaceAll(/õa/g, 'oã')  // hoã -> hõa
-        .replaceAll(/ọa/g, 'oạ')  // hoạ -> họa
-        .replaceAll(/úy/g, 'uý')  // thuý -> thúy
-        .replaceAll(/ùy/g, 'uỳ')  // thuỳ -> thùy
-        .replaceAll(/ủy/g, 'uỷ')  // thuỷ -> thủy  
-        .replaceAll(/ũy/g, 'uỹ')  // thuỹ -> thũy
-        .replaceAll(/ụy/g, 'uỵ')  // thuỵ -> thụy
-        .replaceAll(/úi/g, 'uí')  // tuí -> túi
-        .replaceAll(/ùi/g, 'uì')  // tuì -> tùi
-        .replaceAll(/ủi/g, 'uỉ')  // tuỉ -> tủi
-        .replaceAll(/ũi/g, 'uĩ')  // tuĩ -> tũi  
-        .replaceAll(/ụi/g, 'uị');  // tuị -> tụi
+        .replaceAll(/óa/g, 'oá')  // hóa -> hoá, khóa -> khoá
+        .replaceAll(/òa/g, 'oà')  // hòa -> hoà  
+        .replaceAll(/ỏa/g, 'oả')  // hỏa -> hoả
+        .replaceAll(/õa/g, 'oã')  // hõa -> hoã
+        .replaceAll(/ọa/g, 'oạ')  // họa -> hoạ
+        .replaceAll(/úy/g, 'uý')  // thúy -> thuý
+        .replaceAll(/ùy/g, 'uỳ')  // thùy -> thuỳ
+        .replaceAll(/ủy/g, 'uỷ')  // thủy -> thuỷ  
+        .replaceAll(/ũy/g, 'uỹ')  // thũy -> thuỹ
+        .replaceAll(/ụy/g, 'uỵ'); // thụy -> thuỵ
 };
 
 // ✅ In-memory cache cho game data
@@ -36,8 +32,8 @@ let rankLoader: Record<number, { slug: string; createdAt: string }> | null = nul
 
 // LRU cache với limit để tránh memory overflow khi có quá nhiều games
 const MAX_CACHED_GAMES = 20; // Giới hạn 20 games trong memory (~20-50MB tùy size)
-const gameDataCache = new Map<string, { 
-    rank_map: Record<string, number>; 
+const gameDataCache = new Map<string, {
+    rank_map: Record<string, number>;
     hints?: number[];
     lastAccessed: number; // Timestamp để implement LRU
 }>();
@@ -65,33 +61,33 @@ async function getGameData(slug: string) {
     const filePath = join(process.cwd(), 'lib', 'contexto', `${slug}.json`);
     const fileContent = await readFile(filePath, 'utf-8');
     const gameData = JSON.parse(fileContent);
-    
+
     // Evict oldest entry if cache is full (LRU)
     if (gameDataCache.size >= MAX_CACHED_GAMES) {
         let oldestSlug = '';
         let oldestTime = Infinity;
-        
+
         for (const [key, value] of gameDataCache.entries()) {
             if (value.lastAccessed < oldestTime) {
                 oldestTime = value.lastAccessed;
                 oldestSlug = key;
             }
         }
-        
+
         if (oldestSlug) {
             gameDataCache.delete(oldestSlug);
             console.log('[CACHE] Evicted:', oldestSlug, 'to make room for:', slug);
         }
     }
-    
+
     // Add to cache with current timestamp
     gameDataCache.set(slug, {
         ...gameData,
         lastAccessed: Date.now()
     });
-    
+
     console.log('[CACHE] Loaded:', slug, `(${gameDataCache.size}/${MAX_CACHED_GAMES} cached)`);
-    
+
     return gameDataCache.get(slug)!;
 }
 
@@ -113,18 +109,18 @@ export async function GET(req: Request) {
     const lowestRank = searchParams.get("lowestRank") ? Number(searchParams.get("lowestRank")) : null;
 
     if (!id) {
-        return NextResponse.json({ error: "Thiếu id" }, { 
+        return NextResponse.json({ error: "Thiếu id" }, {
             status: 400,
-            headers: corsHeaders 
+            headers: corsHeaders
         });
     }
 
     const rankLoaderData = await getRankLoader();
     const game = rankLoaderData![id];
     if (!game) {
-        return NextResponse.json({ error: "Không tìm thấy game" }, { 
+        return NextResponse.json({ error: "Không tìm thấy game" }, {
             status: 404,
-            headers: corsHeaders 
+            headers: corsHeaders
         });
     }
 
@@ -157,9 +153,9 @@ export async function GET(req: Request) {
                     }
                 });
             } else {
-                return NextResponse.json({ error: "Không tìm thấy từ bí mật" }, { 
+                return NextResponse.json({ error: "Không tìm thấy từ bí mật" }, {
                     status: 404,
-                    headers: corsHeaders 
+                    headers: corsHeaders
                 });
             }
         }
@@ -182,18 +178,18 @@ export async function GET(req: Request) {
                 if (lowestRank && lowestRank <= 2) {
                     return NextResponse.json({
                         error: "Bạn đã siêu gần rồi! Hãy tự tìm câu trả lời nhé! 🔥"
-                    }, { 
+                    }, {
                         status: 400,
-                        headers: corsHeaders 
+                        headers: corsHeaders
                     });
                 }
 
                 // Sắp xếp hints theo thứ tự giảm dần (từ to đến bé)
                 const sortedHints = [...predefinedHints].sort((a, b) => b - a);
-                
+
                 // Tìm hint phù hợp từ danh sách predefined
                 // Chọn hint lớn nhất mà nhỏ hơn lowestRank (hoặc hint lớn nhất nếu chưa đoán)
-                const suitableHint = sortedHints.find(hintRank => 
+                const suitableHint = sortedHints.find(hintRank =>
                     !lowestRank || hintRank < lowestRank
                 );
 
@@ -229,7 +225,7 @@ export async function GET(req: Request) {
             // ============================================================
             // FALLBACK: Phương pháp random cũ (progressive hint logic)
             // ============================================================
-            
+
             // Implement progressive hint logic - người dùng phải hint tuần tự
             // Hệ thống hint dần dần, không cho phép nhảy cấp quá nhanh
             let targetRankRange: [number, number];
@@ -284,9 +280,9 @@ export async function GET(req: Request) {
                 // Đã rất gần (rank <= 2) -> không cho hint nữa
                 return NextResponse.json({
                     error: "Bạn đã siêu gần rồi! Hãy tự tìm câu trả lời nhé! 🔥"
-                }, { 
+                }, {
                     status: 400,
-                    headers: corsHeaders 
+                    headers: corsHeaders
                 });
             }
 
@@ -331,9 +327,9 @@ export async function GET(req: Request) {
                 if (fallbackWords.length === 0) {
                     return NextResponse.json({
                         error: "Không thể tìm thấy từ hint phù hợp cho level này"
-                    }, { 
+                    }, {
                         status: 404,
-                        headers: corsHeaders 
+                        headers: corsHeaders
                     });
                 }
 
@@ -381,18 +377,18 @@ export async function GET(req: Request) {
         if (getClosest) {
             // Kiểm tra bảo mật: yêu cầu guess phải đúng từ bí mật (rank 1)
             if (!guess) {
-                return NextResponse.json({ error: "Thiếu từ xác thực" }, { 
+                return NextResponse.json({ error: "Thiếu từ xác thực" }, {
                     status: 400,
-                    headers: corsHeaders 
+                    headers: corsHeaders
                 });
             }
 
             const guessRank = rank_map[guess] as number | undefined;
             if (!guessRank || guessRank !== 1) {
                 console.log('[CLOSEST] Unauthorized:', { guess, rank: guessRank });
-                return NextResponse.json({ error: "Chưa đoán đúng từ bí mật" }, { 
+                return NextResponse.json({ error: "Chưa đoán đúng từ bí mật" }, {
                     status: 403,
-                    headers: corsHeaders 
+                    headers: corsHeaders
                 });
             }
 
@@ -426,18 +422,18 @@ export async function GET(req: Request) {
 
         // Logic cũ cho việc đoán từ
         if (!guess) {
-            return NextResponse.json({ error: "Thiếu guess" }, { 
+            return NextResponse.json({ error: "Thiếu guess" }, {
                 status: 400,
-                headers: corsHeaders 
+                headers: corsHeaders
             });
         }
 
         const entry = rank_map[guess];
         if (!entry) {
             console.log('[GUESS] Not found:', { id, word: guess });
-            return NextResponse.json({ rank: null, score: null }, { 
+            return NextResponse.json({ rank: null, score: null }, {
                 status: 404,
-                headers: corsHeaders 
+                headers: corsHeaders
             });
         }
 
@@ -458,9 +454,9 @@ export async function GET(req: Request) {
         });
     } catch (err) {
         console.error("❌ [ERROR]", { id, guess, getClosest, getSecret, getHint, lowestRank, error: err });
-        return NextResponse.json({ error: "Lỗi khi đọc dữ liệu game" }, { 
+        return NextResponse.json({ error: "Lỗi khi đọc dữ liệu game" }, {
             status: 500,
-            headers: corsHeaders 
+            headers: corsHeaders
         });
     }
 }
